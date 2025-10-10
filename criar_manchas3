@@ -1,0 +1,122 @@
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+import random
+
+# ----- Configurações -----
+N_OBJETOS = 8          # quantidade de círculos coloridos
+DURACAO = 15           # segundos
+FPS = 24
+FRAMES = DURACAO * FPS
+RASTRO_LEN =5    # comprimento do rastro
+FIM_RASTRO = 30
+
+# limites do gráfico
+X_LIM = (-180, 180)
+Y_LIM = (-100, 100)
+
+# gera posições iniciais aleatórias
+pos = np.random.uniform([X_LIM[0], Y_LIM[0]], [X_LIM[1], Y_LIM[1]], (N_OBJETOS, 2))
+vel = np.random.uniform(-0.8, 0.8, (N_OBJETOS, 2))
+cores = ['red', 'green', 'blue', 'yellow', 'orange', 'purple', 'brown', 'gray']
+
+# ----- Setup do plot -----
+fig, ax = plt.subplots(figsize=(8, 4.5))
+ax.set_xlim(X_LIM)
+ax.set_ylim(Y_LIM)
+ax.set_facecolor('#87CEEB')  # azul claro (hexadecimal)
+
+ax.set_title("ManchaSat Camera Scene Simulation", fontsize=14, fontweight='bold')
+ax.set_xlabel("Longitude")
+ax.set_ylabel("Latitude")
+
+# cria os pontos coloridos
+pontos = []
+for i in range(N_OBJETOS):
+    ponto, = ax.plot([], [], 'o', color=cores[i % len(cores)], markersize=15)
+    pontos.append(ponto)
+
+# ----- Cria sombras/rastros aleatórios -----
+num_sombras = random.randint(1, N_OBJETOS // 2 - 1)  # pelo menos 1, menos da metade
+indices_sombras = random.sample(range(N_OBJETOS), num_sombras)
+
+rastros = []
+historico = []
+for i in range(N_OBJETOS):
+    if i in indices_sombras:
+        rastro, = ax.plot([], [], '-', color='black', linewidth=6,alpha=0.7)
+        rastros.append(rastro)
+        historico.append([])  # lista para armazenar posições passadas
+    else:
+        rastros.append(None)
+        historico.append(None)
+
+# ----- Função de atualização -----
+def update(frame):
+    global pos, vel
+    pos += vel
+
+    # colisão com bordas
+    for i in range(N_OBJETOS):
+        if pos[i, 0] < X_LIM[0] or pos[i, 0] > X_LIM[1]:
+            vel[i, 0] *= -1
+        if pos[i, 1] < Y_LIM[0] or pos[i, 1] > Y_LIM[1]:
+            vel[i, 1] *= -1
+
+    # atualiza rastros curtos
+    for i, rastro in enumerate(rastros):
+        if rastro is not None and frame < FIM_RASTRO:
+            historico[i].append(pos[i].copy())
+            if len(historico[i]) > RASTRO_LEN:
+                historico[i].pop(0)
+            xy = np.array(historico[i])
+            rastro.set_data(xy[:, 0], xy[:, 1])
+
+    # depois de FIM_RASTRO, o rastro não é mais atualizado
+    if frame >= FIM_RASTRO:
+        for i, rastro in enumerate(rastros):
+            if rastro is not None:
+                xy = np.array(historico[i])
+                rastro.set_data(xy[:, 0], xy[:, 1])  # mantém a mancha fixa
+
+    # atualiza posições da bola
+    for i, ponto in enumerate(pontos):
+        ponto.set_data(pos[i, 0], pos[i, 1])
+
+    return pontos + [r for r in rastros if r is not None]
+
+def update(frame):
+    global pos, vel
+    pos += vel
+
+    # colisão com bordas
+    for i in range(N_OBJETOS):
+        if pos[i, 0] < X_LIM[0] or pos[i, 0] > X_LIM[1]:
+            vel[i, 0] *= -1
+        if pos[i, 1] < Y_LIM[0] or pos[i, 1] > Y_LIM[1]:
+            vel[i, 1] *= -1
+
+    # atualiza posições dos rastros/manchas
+    for i, rastro in enumerate(rastros):
+        if rastro is not None and frame < FIM_RASTRO:
+            historico[i].append(pos[i].copy())  # acumula rastro apenas nos frames iniciais
+            xy = np.array(historico[i])
+            rastro.set_data(xy[:, 0], xy[:, 1])
+
+    # atualiza posições dos pontos principais
+    for i, ponto in enumerate(pontos):
+        ponto.set_data(pos[i, 0], pos[i, 1])
+
+    return pontos + [r for r in rastros if r is not None]
+
+# ----- Cria animação -----
+ani = animation.FuncAnimation(
+    fig, update, frames=FRAMES, interval=1000/FPS, blit=True
+)
+
+# salva vídeo em MP4
+ani.save("manchas_video_rastro.mp4", fps=FPS, dpi=150, extra_args=['-vcodec', 'libx264'])
+
+plt.close(fig)
+print("✅ Vídeo 'manchas_video_rastro.mp4' criado com sucesso!")
+
